@@ -1,0 +1,65 @@
+
+name: Build x64dbg MCP Loader
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-loader:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure Visual Studio environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure 64-bit loader
+        shell: pwsh
+        run: |
+          cmake -S plugin/loader -B plugin/loader/build64 -A x64
+
+      - name: Build 64-bit loader
+        shell: pwsh
+        run: |
+          cmake --build plugin/loader/build64 --config Release
+
+      - name: Configure 32-bit loader
+        shell: pwsh
+        run: |
+          cmake -S plugin/loader -B plugin/loader/build32 -A Win32 -DBUILD_32BIT=ON
+
+      - name: Build 32-bit loader
+        shell: pwsh
+        run: |
+          cmake --build plugin/loader/build32 --config Release
+
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $files = @(
+            "plugin/loader/build64/Release/x64dbg_mcp_loader.dp64",
+            "plugin/loader/build32/Release/x64dbg_mcp_loader.dp32"
+          )
+
+          foreach ($file in $files) {
+            if (!(Test-Path $file)) {
+              throw "Missing build output: $file"
+            }
+          }
+
+      - name: Upload loader artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: x64dbg-mcp-loaders
+          path: |
+            plugin/loader/build64/Release/x64dbg_mcp_loader.dp64
+            plugin/loader/build32/Release/x64dbg_mcp_loader.dp32
+          if-no-files-found: error
+          retention-days: 7
